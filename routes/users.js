@@ -107,7 +107,11 @@ router.get("/referrals", async (req, res) => {
         .collection("users")
         .find()
         // if there is a draw, we get "oldest" user
-        .sort({ given_referrals: -1, created_at: 1 })
+        // using array instead of object to reflect sort priority
+        .sort([
+          ["given_referrals", -1],
+          ["created_at", 1],
+        ])
         .limit(1)
         .toArray();
 
