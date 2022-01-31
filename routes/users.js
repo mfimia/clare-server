@@ -14,9 +14,26 @@ const client = new MongoClient(process.env.MONGO_URI, {
 });
 
 // @route   GET api/users
-// desc     Get all email addresses
+// desc     Get all users
 // @access  Private
 router.get("/", async (req, res) => {
+  try {
+    client.connect(async () => {
+      const db = client.db("Clare");
+      const users = await db.collection("users").find().toArray();
+      res.json(users);
+      await client.close();
+    });
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send("Server Error");
+  }
+});
+
+// @route   GET api/users
+// desc     Get all email addresses
+// @access  Private
+router.get("/email", async (req, res) => {
   try {
     client.connect(async () => {
       const db = client.db("Clare");
