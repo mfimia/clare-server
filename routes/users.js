@@ -112,6 +112,7 @@ router.get("/referrals", async (req, res) => {
         .limit(1)
         .toArray();
 
+      // returns an object with user and amount of referrals
       res.json({
         user: mostReferrals[0],
         refAmount: mostReferrals[0].given_referrals.length,
