@@ -106,9 +106,8 @@ router.get("/referrals", async (req, res) => {
       const mostReferrals = await db
         .collection("users")
         .find()
-        .sort("given_referrals", -1)
-        // in case there is a draw, we get oldest user
-        .sort("created_at", 1)
+        // if there is a draw, we get "oldest" user
+        .sort({ given_referrals: -1, created_at: 1 })
         .limit(1)
         .toArray();
 
