@@ -96,7 +96,7 @@ router.get("/referrals", async (req, res) => {
         .toArray();
 
       res.json({
-        user: mostReferrals,
+        user: mostReferrals[0],
         refAmount: mostReferrals[0].given_referrals.length,
       });
       await client.close();
