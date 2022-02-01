@@ -1,10 +1,14 @@
 const express = require("express");
 const dotenv = require("dotenv");
+const cors = require("cors");
 
 // add environment variables
 dotenv.config();
 
 const app = express();
+
+// enable cors
+app.use(cors());
 
 // parse JSON with middleware
 app.use(express.json({ extended: false }));
