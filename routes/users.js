@@ -15,14 +15,12 @@ const client = new MongoClient(process.env.MONGO_URI, {
 
 // @route   GET api/users
 // desc     Get all users
-// @access  Private
 router.get("/", async (req, res) => {
   try {
     client.connect(async () => {
       const db = client.db("Clare");
       const users = await db.collection("users").find().toArray();
       res.json(users);
-      await client.close();
     });
   } catch (err) {
     console.error(err.message);
@@ -32,14 +30,69 @@ router.get("/", async (req, res) => {
 
 // @route   GET api/users
 // desc     Get all email addresses
-// @access  Private
 router.get("/email", async (req, res) => {
   try {
     client.connect(async () => {
       const db = client.db("Clare");
-      const emails = await db.collection("users").distinct("email");
+      // const emails = await db.collection("users").distinct("email");
+      const emails = await db
+        .collection("users")
+        .aggregate([
+          { $sort: { created_at: -1 } },
+          // { $group: { _id: null, primaries: { $addToSet: "$email" } } },
+          { $project: { email: 1, _id: 0 } },
+        ])
+        .toArray();
+
       res.json(emails);
-      await client.close();
+    });
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send("Server Error");
+  }
+});
+
+// @route   POST api/users/auth/code
+// desc     Validate referral code
+router.post("/auth/code", async (req, res) => {
+  const { referred_by } = await req.body;
+
+  try {
+    client.connect(async () => {
+      const db = client.db("Clare");
+      const refCodes = await db.collection("users").distinct("referral_code");
+
+      if (refCodes.includes(referred_by)) {
+        res.status(200).json({ success: true });
+      } else {
+        res
+          .status(401)
+          .json({ success: false, reason: "referral code not found" });
+      }
+    });
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send("Server Error");
+  }
+});
+
+// @route   POST api/users/auth/email
+// desc     Check if email is in use
+router.post("/auth/email", async (req, res) => {
+  const { email } = await req.body;
+
+  try {
+    client.connect(async () => {
+      const db = client.db("Clare");
+      const emails = await db.collection("users").distinct("email");
+
+      if (emails.includes(email)) {
+        res
+          .status(401)
+          .json({ success: false, reason: "email already exists" });
+      } else {
+        res.status(200).json({ success: true });
+      }
     });
   } catch (err) {
     console.error(err.message);
@@ -49,7 +102,6 @@ router.get("/email", async (req, res) => {
 
 // @route   POST api/users
 // desc     Add new user
-// @access  Private
 router.post("/", async (req, res) => {
   try {
     const { first_name, last_name, email, referred_by } = await req.body;
@@ -63,7 +115,6 @@ router.post("/", async (req, res) => {
         client.connect(async () => {
           const db = client.db("Clare");
           await db.collection("users").findOneAndUpdate(filter, update);
-          await client.close();
         });
       } catch (err) {
         console.error(err.message);
@@ -86,8 +137,7 @@ router.post("/", async (req, res) => {
     client.connect(async () => {
       const db = client.db("Clare");
       await db.collection("users").insertOne(newUser);
-      res.json(newUser);
-      await client.close();
+      res.status(200).json(newUser);
     });
   } catch (err) {
     console.error(err.message);
@@ -97,7 +147,6 @@ router.post("/", async (req, res) => {
 
 // @route   GET api/users/referrals
 // desc     Get user with most referrals
-// @access  Private
 router.get("/referrals", async (req, res) => {
   try {
     client.connect(async () => {
@@ -105,22 +154,25 @@ router.get("/referrals", async (req, res) => {
       // returns document with largest "given_referrals" array
       const mostReferrals = await db
         .collection("users")
-        .find()
-        // if there is a draw, we get "oldest" user
-        // using array instead of object to reflect sort priority
-        .sort([
-          ["given_referrals", -1],
-          ["created_at", 1],
+        .aggregate([
+          { $unwind: "$given_referrals" },
+          {
+            $group: {
+              _id: "$_id",
+              length: { $sum: 1 },
+              email: { $first: "$email" },
+              first_name: { $first: "$first_name" },
+              last_name: { $first: "$last_name" },
+              created_at: { $first: "$created_at" },
+            },
+          },
+          // sort by array length, then by "oldest" user
+          { $sort: { length: -1, created_at: 1 } },
+          { $limit: 1 },
         ])
-        .limit(1)
         .toArray();
 
-      // returns an object with user and amount of referrals
-      res.json({
-        user: mostReferrals[0],
-        refAmount: mostReferrals[0].given_referrals.length,
-      });
-      await client.close();
+      res.json(mostReferrals[0]);
     });
   } catch (err) {
     console.error(err.message);
