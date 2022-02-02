@@ -1,27 +1,16 @@
-const { MongoClient } = require("mongodb");
 const express = require("express");
 const router = express.Router();
-const dotenv = require("dotenv");
 const genReferral = require("../utils/genReferral");
 
-// use environment variables
-dotenv.config();
-
-// connect to db
-const client = new MongoClient(process.env.MONGO_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-});
+// get model
+const User = require("../models/User");
 
 // @route   GET api/users
 // desc     Get all users
 router.get("/", async (req, res) => {
   try {
-    client.connect(async () => {
-      const db = client.db("Clare");
-      const users = await db.collection("users").find().toArray();
-      res.json(users);
-    });
+    const users = await User.find({});
+    res.json(users);
   } catch (err) {
     console.error(err.message);
     res.status(500).send("Server Error");
@@ -32,20 +21,12 @@ router.get("/", async (req, res) => {
 // desc     Get all email addresses
 router.get("/email", async (req, res) => {
   try {
-    client.connect(async () => {
-      const db = client.db("Clare");
-      // const emails = await db.collection("users").distinct("email");
-      const emails = await db
-        .collection("users")
-        .aggregate([
-          { $sort: { created_at: -1 } },
-          // { $group: { _id: null, primaries: { $addToSet: "$email" } } },
-          { $project: { email: 1, _id: 0 } },
-        ])
-        .toArray();
+    const emails = await User.aggregate([
+      { $sort: { created_at: -1 } },
+      { $project: { email: 1, _id: 0 } },
+    ]);
 
-      res.json(emails);
-    });
+    res.json(emails);
   } catch (err) {
     console.error(err.message);
     res.status(500).send("Server Error");
@@ -58,18 +39,15 @@ router.post("/auth/code", async (req, res) => {
   const { referred_by } = await req.body;
 
   try {
-    client.connect(async () => {
-      const db = client.db("Clare");
-      const refCodes = await db.collection("users").distinct("referral_code");
+    const refCodes = await User.distinct("referral_code");
 
-      if (refCodes.includes(referred_by)) {
-        res.status(200).json({ success: true });
-      } else {
-        res
-          .status(401)
-          .json({ success: false, reason: "referral code not found" });
-      }
-    });
+    if (refCodes.includes(referred_by)) {
+      res.status(200).json({ success: true });
+    } else {
+      res
+        .status(401)
+        .json({ success: false, reason: "referral code not found" });
+    }
   } catch (err) {
     console.error(err.message);
     res.status(500).send("Server Error");
@@ -82,18 +60,13 @@ router.post("/auth/email", async (req, res) => {
   const { email } = await req.body;
 
   try {
-    client.connect(async () => {
-      const db = client.db("Clare");
-      const emails = await db.collection("users").distinct("email");
+    const emails = await User.distinct("email");
 
-      if (emails.includes(email)) {
-        res
-          .status(401)
-          .json({ success: false, reason: "email already exists" });
-      } else {
-        res.status(200).json({ success: true });
-      }
-    });
+    if (emails.includes(email)) {
+      res.status(401).json({ success: false, reason: "email already exists" });
+    } else {
+      res.status(200).json({ success: true });
+    }
   } catch (err) {
     console.error(err.message);
     res.status(500).send("Server Error");
@@ -112,10 +85,7 @@ router.post("/", async (req, res) => {
         const filter = { referral_code: referred_by };
         const update = { $push: { given_referrals: email } };
 
-        client.connect(async () => {
-          const db = client.db("Clare");
-          await db.collection("users").findOneAndUpdate(filter, update);
-        });
+        await User.findOneAndUpdate(filter, update);
       } catch (err) {
         console.error(err.message);
         res.status(500).send("Server Error");
@@ -134,11 +104,9 @@ router.post("/", async (req, res) => {
     };
 
     // add user to collection
-    client.connect(async () => {
-      const db = client.db("Clare");
-      await db.collection("users").insertOne(newUser);
-      res.status(200).json(newUser);
-    });
+    await User.create(newUser);
+
+    res.status(200).json(newUser);
   } catch (err) {
     console.error(err.message);
     res.status(500).send("Server Error");
@@ -149,31 +117,25 @@ router.post("/", async (req, res) => {
 // desc     Get user with most referrals
 router.get("/referrals", async (req, res) => {
   try {
-    client.connect(async () => {
-      const db = client.db("Clare");
-      // returns document with largest "given_referrals" array
-      const mostReferrals = await db
-        .collection("users")
-        .aggregate([
-          { $unwind: "$given_referrals" },
-          {
-            $group: {
-              _id: "$_id",
-              length: { $sum: 1 },
-              email: { $first: "$email" },
-              first_name: { $first: "$first_name" },
-              last_name: { $first: "$last_name" },
-              created_at: { $first: "$created_at" },
-            },
-          },
-          // sort by array length, then by "oldest" user
-          { $sort: { length: -1, created_at: 1 } },
-          { $limit: 1 },
-        ])
-        .toArray();
+    // returns document with largest "given_referrals" array
+    const mostReferrals = await User.aggregate([
+      { $unwind: "$given_referrals" },
+      {
+        $group: {
+          _id: "$_id",
+          length: { $sum: 1 },
+          email: { $first: "$email" },
+          first_name: { $first: "$first_name" },
+          last_name: { $first: "$last_name" },
+          created_at: { $first: "$created_at" },
+        },
+      },
+      // sort by array length, then by "oldest" user
+      { $sort: { length: -1, created_at: 1 } },
+      { $limit: 1 },
+    ]);
 
-      res.json(mostReferrals[0]);
-    });
+    res.json(mostReferrals[0]);
   } catch (err) {
     console.error(err.message);
     res.status(500).send("Server Error");
