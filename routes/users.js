@@ -33,46 +33,6 @@ router.get("/email", async (req, res) => {
   }
 });
 
-// @route   POST api/users/auth/code
-// desc     Validate referral code
-router.post("/auth/code", async (req, res) => {
-  const { referred_by } = await req.body;
-
-  try {
-    const refCodes = await User.distinct("referral_code");
-
-    if (refCodes.includes(referred_by)) {
-      res.status(200).json({ success: true });
-    } else {
-      res
-        .status(401)
-        .json({ success: false, reason: "referral code not found" });
-    }
-  } catch (err) {
-    console.error(err.message);
-    res.status(500).send("Server Error");
-  }
-});
-
-// @route   POST api/users/auth/email
-// desc     Check if email is in use
-router.post("/auth/email", async (req, res) => {
-  const { email } = await req.body;
-
-  try {
-    const emails = await User.distinct("email");
-
-    if (emails.includes(email)) {
-      res.status(401).json({ success: false, reason: "email already exists" });
-    } else {
-      res.status(200).json({ success: true });
-    }
-  } catch (err) {
-    console.error(err.message);
-    res.status(500).send("Server Error");
-  }
-});
-
 // @route   POST api/users
 // desc     Add new user
 router.post("/", async (req, res) => {
@@ -81,15 +41,10 @@ router.post("/", async (req, res) => {
 
     // if user has been referred, update source user
     if (referred_by) {
-      try {
-        const filter = { referral_code: referred_by };
-        const update = { $push: { given_referrals: email } };
+      const filter = { referral_code: referred_by };
+      const update = { $push: { given_referrals: email } };
 
-        await User.findOneAndUpdate(filter, update);
-      } catch (err) {
-        console.error(err.message);
-        res.status(500).send("Server Error");
-      }
+      await User.findOneAndUpdate(filter, update);
     }
 
     // generate new user
