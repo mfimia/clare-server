@@ -93,7 +93,7 @@ router.post("/", async (req, res) => {
     }
 
     // generate new user
-    const newUser = {
+    const newUser = new User({
       first_name,
       last_name,
       email,
@@ -101,10 +101,10 @@ router.post("/", async (req, res) => {
       created_at: new Date(),
       referral_code: genReferral(),
       given_referrals: [],
-    };
+    });
 
     // add user to collection
-    await User.create(newUser);
+    await newUser.save();
 
     res.status(200).json(newUser);
   } catch (err) {
