@@ -13,7 +13,6 @@ const connectDB = async () => {
   } catch (err) {
     console.error(err.message);
 
-    // If failure, exit server
     process.exit(1);
   }
 };
