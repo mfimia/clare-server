@@ -86,7 +86,7 @@ const getUsers = async (_, res) => {
   }
 };
 
-// egt list of emails DESC by date
+// get list of emails DESC by date
 const getEmails = async (_, res) => {
   try {
     const emails = await User.aggregate([
